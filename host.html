@@ -20,7 +20,16 @@
     .btn-toggle:active { transform: scale(0.95); }
     
     .container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; }
-    #winnerDisplay { font-size: 4rem; color: #f1c40f; margin: 20px 0; font-weight: bold; text-shadow: 0 0 20px rgba(241, 196, 15, 0.5); }
+    
+    /* กล่องแสดงรายชื่อ 5 อันดับ */
+    #winnerList {
+      font-size: 2rem; color: #f1c40f; text-align: left; 
+      background: rgba(0,0,0,0.3); padding: 20px 40px 20px 60px; 
+      border-radius: 12px; margin: 20px auto; min-width: 250px;
+    }
+    #winnerList li { margin-bottom: 10px; }
+    .empty-list { color: #bdc3c7; font-size: 1.5rem; text-align: center; list-style: none; margin-left: -20px;}
+
     .host-badge { background: #c0392b; padding: 5px 15px; border-radius: 20px; font-size: 14px; margin-bottom: 20px;}
   </style>
 </head>
@@ -39,8 +48,11 @@
     
     <button id="toggleBtn" class="btn-toggle" onclick="toggleBuzzer()" style="background: #7f8c8d; color: white;">⏳ กำลังโหลด...</button>
 
-    <div style="margin-top: 30px; font-size: 1.2rem; color: #bdc3c7;">ผู้ที่กดปุ่มได้คนแรกคือ:</div>
-    <div id="winnerDisplay">รอคนกด...</div>
+    <div style="margin-top: 30px; font-size: 1.2rem; color: #bdc3c7;">ผู้ที่กดปุ่มได้ 5 อันดับแรกคือ:</div>
+    
+    <ol id="winnerList">
+      <li class="empty-list">รอคนกด...</li>
+    </ol>
     
     <button id="resetBtn" class="btn-reset" onclick="resetBuzzer()">🔄 ล้างปุ่ม และ ปิดล็อกห้อง</button>
   </div>
@@ -71,44 +83,55 @@
 
       roomRef = db.ref('buzzer_rooms/' + myRoom);
 
-      // ดักฟังความเคลื่อนไหวทั้งห้อง (ทั้งผู้ชนะ และ สถานะเปิด/ปิด)
       roomRef.on('value', (snapshot) => {
         const data = snapshot.val() || {};
         isBuzzerOpen = data.isOpen || false;
-        const winner = data.winner || null;
+        const clicks = data.clicks || {};
         
-        const display = document.getElementById('winnerDisplay');
+        const listEl = document.getElementById('winnerList');
         const toggleBtn = document.getElementById('toggleBtn');
 
-        // จัดการหน้าจอผู้ชนะ
-        if (winner) {
-          display.innerText = "🚨 " + winner + " 🚨";
+        // แปลงข้อมูลคิวให้เป็น Array แล้วเรียงลำดับตามเวลาที่กดเข้ามา
+        const clickArray = [];
+        for (let key in clicks) {
+          clickArray.push({ id: key, name: clicks[key].name });
+        }
+        clickArray.sort((a, b) => a.id.localeCompare(b.id)); // เรียงลำดับคิว
+
+        // ตัดเอาแค่ 5 คนแรก
+        const top5 = clickArray.slice(0, 5);
+
+        // อัปเดตรายชื่อบนหน้าจอ
+        listEl.innerHTML = "";
+        if (top5.length > 0) {
+          top5.forEach((player) => {
+            const li = document.createElement('li');
+            li.innerText = player.name;
+            listEl.appendChild(li);
+          });
         } else {
-          display.innerText = "ยังไม่มีใครกด";
-          display.style.color = "#bdc3c7";
+          listEl.innerHTML = '<li class="empty-list">รอคนกด...</li>';
         }
 
         // จัดการปุ่มเปิด/ปิด
         if (isBuzzerOpen) {
-          toggleBtn.innerText = "🔴 คลิกเพื่อ 'ปิด' ไม่ให้กด";
+          toggleBtn.innerText = "🔴 'ปิด' ไม่ให้กด";
           toggleBtn.style.background = "#e74c3c";
         } else {
-          toggleBtn.innerText = "🟢 คลิกเพื่อ 'เปิด' ให้กดได้";
+          toggleBtn.innerText = "🟢 'เปิด' ให้กดได้";
           toggleBtn.style.background = "#2ecc71";
         }
       });
     }
 
     function toggleBuzzer() {
-      if(roomRef) {
-        roomRef.update({ isOpen: !isBuzzerOpen });
-      }
+      if(roomRef) roomRef.update({ isOpen: !isBuzzerOpen });
     }
 
     function resetBuzzer() {
       if(roomRef) {
-        // ล้างชื่อผู้ชนะ และ ปิดรับการกดทันที เพื่อเตรียมอ่านข้อต่อไป
-        roomRef.update({ winner: null, isOpen: false }).catch(err => {
+        // ล้างข้อมูลคิวผู้ชนะทั้งหมดทิ้ง และล็อกห้อง
+        roomRef.update({ clicks: null, isOpen: false }).catch(err => {
           alert("เกิดข้อผิดพลาด: " + err.message);
         });
       }
