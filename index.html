@@ -26,7 +26,7 @@
   <div id="loginScreen" class="container">
     <h1>🔴 เข้าสู่ห้องแข่งขัน</h1>
     <input type="text" id="playerName" placeholder="พิมพ์ชื่อของคุณ">
-    <input type="text" id="roomName" placeholder="รหัสห้อง (เช่น room1)" value="room1">
+    <input type="text" id="roomName" placeholder="รหัสห้อง (เช่น spsm)" value="room1">
     <button class="btn-join" onclick="joinGame()">เข้าเล่นเกม</button>
   </div>
 
@@ -51,6 +51,7 @@
     const db = firebase.database();
     
     let myName = "", myRoom = "", roomRef = null;
+    let isSubmitting = false; // ป้องกันการกดเบิ้ล
 
     function joinGame() {
       myName = document.getElementById('playerName').value.trim();
@@ -64,24 +65,42 @@
 
       roomRef = db.ref('buzzer_rooms/' + myRoom);
       
-      // ดักฟังข้อมูลห้องทั้งหมด
       roomRef.on('value', (snapshot) => {
         const data = snapshot.val() || {};
         const isBuzzerOpen = data.isOpen || false;
-        const currentWinner = data.winner || null;
+        const clicks = data.clicks || {};
         
         const btn = document.getElementById('buzzBtn');
         const status = document.getElementById('playerStatus');
 
-        if (currentWinner) {
+        // จัดเรียงคิวทั้งหมด
+        const clickArray = [];
+        for (let key in clicks) {
+          clickArray.push({ id: key, name: clicks[key].name });
+        }
+        clickArray.sort((a, b) => a.id.localeCompare(b.id));
+
+        // หาว่าเราอยู่อันดับที่เท่าไหร่ (-1 คือยังไม่ได้กด)
+        const myIndex = clickArray.findIndex(p => p.name === myName);
+
+        if (myIndex !== -1) {
+          // ถ้าเรากดไปแล้ว
           btn.disabled = true;
-          status.innerText = (currentWinner === myName) ? "🎉 คุณไวกว่าใคร!" : "❌ ไม่ทัน! " + currentWinner + " กดไปแล้ว";
-          status.style.color = (currentWinner === myName) ? "#f1c40f" : "#e74c3c";
+          const rank = myIndex + 1;
+          if (rank <= 5) {
+            status.innerText = `🎉 คุณกดได้อันดับที่ ${rank}!`;
+            status.style.color = "#f1c40f";
+          } else {
+            status.innerText = `❌ ไม่ทัน 5 อันดับแรก (คุณได้ที่ ${rank})`;
+            status.style.color = "#e74c3c";
+          }
         } else if (!isBuzzerOpen) {
+          // ถ้ายังไม่ได้กด และห้องล็อก
           btn.disabled = true;
           status.innerText = "🔒 Host ล็อกห้องอยู่ (รอคำถามจบ)";
           status.style.color = "#95a5a6";
         } else {
+          // ถ้าห้องเปิด และยังไม่ได้กด
           btn.disabled = false;
           status.innerText = "🟢 พร้อม! กดเลย!";
           status.style.color = "#2ecc71";
@@ -90,11 +109,19 @@
     }
 
     function hitBuzzer() {
-      const btn = document.getElementById('buzzBtn');
-      btn.disabled = true; 
-      roomRef.child('winner').transaction((currentWinner) => {
-        if (currentWinner === null) return myName; 
-        return; 
+      if (isSubmitting) return;
+      isSubmitting = true;
+      document.getElementById('buzzBtn').disabled = true; 
+      
+      // ดันชื่อตัวเองเข้าคิว
+      roomRef.child('clicks').push({
+        name: myName,
+        time: firebase.database.ServerValue.TIMESTAMP
+      }).then(() => {
+        isSubmitting = false;
+      }).catch((err) => {
+        isSubmitting = false;
+        alert("กดไม่สำเร็จ ลองใหม่อีกครั้ง");
       });
     }
   </script>
