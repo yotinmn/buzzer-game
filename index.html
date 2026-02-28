@@ -3,54 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Real-time Buzzer</title>
-  
+  <title>Buzzer - Player</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-  
   <style>
-    body { font-family: 'Kanit', sans-serif; text-align: center; background: #2c3e50; color: white; padding: 20px; }
-    .hidden { display: none; }
-    input { padding: 10px; font-size: 16px; margin: 10px; border-radius: 8px; border: none; width: 80%; max-width: 300px; text-align: center; }
+    body { font-family: 'Kanit', sans-serif; text-align: center; background: #2c3e50; color: white; padding: 20px; margin: 0;}
+    .hidden { display: none !important; }
+    input { padding: 12px; font-size: 16px; margin: 10px; border-radius: 8px; border: none; width: 80%; max-width: 300px; text-align: center; }
     button { padding: 15px 30px; font-size: 18px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; margin: 5px; }
     
-    .btn-join { background: #3498db; color: white; width: 80%; max-width: 300px; }
-    .btn-host { background: #e67e22; color: white; width: 80%; max-width: 300px; margin-top: 15px; }
-    .btn-buzz { background: #e74c3c; color: white; font-size: 40px; width: 220px; height: 220px; border-radius: 50%; box-shadow: 0 10px #c0392b; transition: 0.1s; margin-top: 50px; }
-    .btn-buzz:active { transform: translateY(10px); box-shadow: 0 0 transparent; }
-    .btn-buzz:disabled { background: #7f8c8d; box-shadow: 0 10px #bdc3c7; cursor: not-allowed; }
+    .btn-join { background: #3498db; color: white; width: 80%; max-width: 300px; margin-top: 10px;}
+    .btn-buzz { background: #e74c3c; color: white; font-size: 50px; width: 250px; height: 250px; border-radius: 50%; box-shadow: 0 12px #c0392b; transition: 0.1s; margin-top: 40px; }
+    .btn-buzz:active { transform: translateY(12px); box-shadow: 0 0 transparent; }
+    .btn-buzz:disabled { background: #7f8c8d; box-shadow: 0 12px #bdc3c7; cursor: not-allowed; }
     
-    #winnerDisplay { font-size: 3rem; color: #f1c40f; margin: 30px 0; font-weight: bold; }
     .container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; }
+    #playerStatus { font-size: 1.5rem; margin-top: 30px; font-weight: bold; }
   </style>
 </head>
 <body>
 
   <div id="loginScreen" class="container">
-    <h1>🔴 Buzzer Game</h1>
-    <p>ใส่ชื่อของคุณและรหัสห้อง (เช่น room1)</p>
-    <input type="text" id="playerName" placeholder="พิมพ์ชื่อของคุณตรงนี้">
-    <input type="text" id="roomName" placeholder="รหัสห้อง" value="room1">
-    
-    <button class="btn-join" onclick="joinAsPlayer()">เข้าเล่นเป็น Player</button>
-    <button class="btn-host" onclick="joinAsHost()">สร้างห้องเป็น Host</button>
+    <h1>🔴 เข้าสู่ห้องแข่งขัน</h1>
+    <input type="text" id="playerName" placeholder="พิมพ์ชื่อของคุณ">
+    <input type="text" id="roomName" placeholder="รหัสห้อง (เช่น room1)" value="room1">
+    <button class="btn-join" onclick="joinGame()">เข้าเล่นเกม</button>
   </div>
 
   <div id="playerScreen" class="container hidden">
-    <h2>ห้อง: <span id="p-room"></span></h2>
-    <h3>ผู้เล่น: <span id="p-name"></span></h3>
-    <button id="buzzBtn" class="btn-buzz" onclick="hitBuzzer()">BUZZ!</button>
-    <h3 id="playerStatus" style="margin-top: 30px;">รอ Host เริ่มเกม...</h3>
-  </div>
-
-  <div id="hostScreen" class="container hidden">
-    <h2>ห้อง: <span id="h-room"></span> (Host)</h2>
-    <div id="winnerDisplay">ยังไม่มีใครกด</div>
-    <button class="btn-join" onclick="resetBuzzer()" style="margin-top: 40px;">🔄 รีเซ็ตปุ่ม (เริ่มข้อใหม่)</button>
+    <h2>ห้อง: <span id="p-room" style="color:#f39c12;"></span></h2>
+    <h3>ชื่อของคุณ: <span id="p-name"></span></h3>
+    <button id="buzzBtn" class="btn-buzz" onclick="hitBuzzer()" disabled>BUZZ!</button>
+    <div id="playerStatus">กำลังโหลดสถานะ...</div>
   </div>
 
   <script>
-    // ใช้ Config ของคุณที่ส่งมา
     const firebaseConfig = {
       apiKey: "AIzaSyDE0wHnqyKzRiujGGBrMKzxXGPfcM_IzJQ",
       authDomain: "yolobuzz-mathspsm.firebaseapp.com",
@@ -58,20 +45,14 @@
       projectId: "yolobuzz-mathspsm",
       storageBucket: "yolobuzz-mathspsm.firebasestorage.app",
       messagingSenderId: "1054193668958",
-      appId: "1:1054193668958:web:4c9a6b99a74df19e75f5cf",
-      measurementId: "G-TNM92SW5WR"
+      appId: "1:1054193668958:web:4c9a6b99a74df19e75f5cf"
     };
-    
-    // เริ่มต้น Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+    
+    let myName = "", myRoom = "", roomRef = null;
 
-    let myName = "";
-    let myRoom = "";
-    let roomRef = null;
-
-    // ----- การจัดการฝั่งผู้เล่น -----
-    function joinAsPlayer() {
+    function joinGame() {
       myName = document.getElementById('playerName').value.trim();
       myRoom = document.getElementById('roomName').value.trim();
       if(!myName || !myRoom) return alert("กรุณาใส่ชื่อและรหัสห้อง");
@@ -83,61 +64,37 @@
 
       roomRef = db.ref('buzzer_rooms/' + myRoom);
       
+      // ดักฟังข้อมูลห้องทั้งหมด
       roomRef.on('value', (snapshot) => {
-        const data = snapshot.val();
+        const data = snapshot.val() || {};
+        const isBuzzerOpen = data.isOpen || false;
+        const currentWinner = data.winner || null;
+        
         const btn = document.getElementById('buzzBtn');
         const status = document.getElementById('playerStatus');
 
-        if (!data || !data.winner) {
-          btn.disabled = false;
-          status.innerText = "🟢 พร้อมกดแล้ว!";
-          status.style.color = "#2ecc71";
-        } else {
+        if (currentWinner) {
           btn.disabled = true;
-          status.innerText = (data.winner === myName) ? "🎉 คุณกดได้คนแรก!" : "❌ " + data.winner + " กดไปแล้ว!";
-          status.style.color = (data.winner === myName) ? "#f1c40f" : "#e74c3c";
+          status.innerText = (currentWinner === myName) ? "🎉 คุณไวกว่าใคร!" : "❌ ไม่ทัน! " + currentWinner + " กดไปแล้ว";
+          status.style.color = (currentWinner === myName) ? "#f1c40f" : "#e74c3c";
+        } else if (!isBuzzerOpen) {
+          btn.disabled = true;
+          status.innerText = "🔒 Host ล็อกห้องอยู่ (รอคำถามจบ)";
+          status.style.color = "#95a5a6";
+        } else {
+          btn.disabled = false;
+          status.innerText = "🟢 พร้อม! กดเลย!";
+          status.style.color = "#2ecc71";
         }
       });
     }
 
     function hitBuzzer() {
-      roomRef.transaction((currentData) => {
-        if (currentData === null || !currentData.winner) {
-          return { winner: myName, time: firebase.database.ServerValue.TIMESTAMP };
-        }
+      const btn = document.getElementById('buzzBtn');
+      btn.disabled = true; 
+      roomRef.child('winner').transaction((currentWinner) => {
+        if (currentWinner === null) return myName; 
         return; 
-      }).catch((error) => {
-        console.error("เกิดข้อผิดพลาดในการกด:", error);
-        alert("กดไม่สำเร็จ ตรวจสอบการตั้งค่า Rules ใน Firebase");
-      });
-    }
-
-    // ----- การจัดการฝั่ง Host -----
-    function joinAsHost() {
-      myRoom = document.getElementById('roomName').value.trim();
-      if(!myRoom) return alert("กรุณาใส่รหัสห้อง");
-
-      document.getElementById('loginScreen').classList.add('hidden');
-      document.getElementById('hostScreen').classList.remove('hidden');
-      document.getElementById('h-room').innerText = myRoom;
-
-      roomRef = db.ref('buzzer_rooms/' + myRoom);
-
-      roomRef.on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (data && data.winner) {
-          document.getElementById('winnerDisplay').innerText = "🚨 " + data.winner + " กดได้!";
-        } else {
-          document.getElementById('winnerDisplay').innerText = "รอผู้เล่นกด...";
-        }
-      });
-      
-      resetBuzzer(); 
-    }
-
-    function resetBuzzer() {
-      if(roomRef) roomRef.set({ winner: null }).catch((error) => {
-        alert("รีเซ็ตไม่สำเร็จ ตรวจสอบการตั้งค่า Rules ใน Firebase");
       });
     }
   </script>
